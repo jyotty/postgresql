@@ -196,6 +196,7 @@ default['postgresql']['pg_hba'] = [
   {:type => 'host', :db => 'all', :user => 'all', :addr => '::1/128', :method => 'md5'}
 ]
 
+default['postgresql']['password_auth'] = true
 default['postgresql']['password'] = Hash.new
 
 case node['platform_family']

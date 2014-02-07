@@ -23,29 +23,31 @@
 
 include_recipe "postgresql::client"
 
-# randomly generate postgres password, unless using solo - see README
-if Chef::Config[:solo]
-  missing_attrs = %w{
-    postgres
-  }.select do |attr|
-    node['postgresql']['password'][attr].nil?
-  end.map { |attr| "node['postgresql']['password']['#{attr}']" }
+if node['postgresql']['password_auth']
+  # randomly generate postgres password, unless using solo - see README
+  if Chef::Config[:solo]
+    missing_attrs = %w{
+      postgres
+    }.select do |attr|
+      node['postgresql']['password'][attr].nil?
+    end.map { |attr| "node['postgresql']['password']['#{attr}']" }
 
-  if !missing_attrs.empty?
-    Chef::Application.fatal!([
-        "You must set #{missing_attrs.join(', ')} in chef-solo mode.",
-        "For more information, see https://github.com/opscode-cookbooks/postgresql#chef-solo-note"
-      ].join(' '))
+    if !missing_attrs.empty?
+      Chef::Application.fatal!([
+          "You must set #{missing_attrs.join(', ')} in chef-solo mode.",
+          "For more information, see https://github.com/opscode-cookbooks/postgresql#chef-solo-note"
+        ].join(' '))
+    end
+  else
+    # TODO: The "secure_password" is randomly generated plain text, so it
+    # should be converted to a PostgreSQL specific "encrypted password" if
+    # it should actually install a password (as opposed to disable password
+    # login for user 'postgres'). However, a random password wouldn't be
+    # useful if it weren't saved as clear text in Chef Server for later
+    # retrieval.
+    node.set_unless['postgresql']['password']['postgres'] = secure_password
+    node.save
   end
-else
-  # TODO: The "secure_password" is randomly generated plain text, so it
-  # should be converted to a PostgreSQL specific "encrypted password" if
-  # it should actually install a password (as opposed to disable password
-  # login for user 'postgres'). However, a random password wouldn't be
-  # useful if it weren't saved as clear text in Chef Server for later
-  # retrieval.
-  node.set_unless['postgresql']['password']['postgres'] = secure_password
-  node.save
 end
 
 # Include the right "family" recipe for installing the server
@@ -89,4 +91,5 @@ bash "assign-postgres-password" do
 echo "ALTER ROLE postgres ENCRYPTED PASSWORD '#{node['postgresql']['password']['postgres']}';" | psql
   EOH
   action :run
+  only_if { node['postgresql']['password_auth'] }
 end
